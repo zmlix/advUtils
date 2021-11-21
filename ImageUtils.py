@@ -85,6 +85,8 @@ class ImageUtils():
             return np.clip(img, 0, 255).astype(np.uint8)
 
     def draw(self, img, row=1, col=1,width = 15,height = 4):
+        plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']  # 用来正常显示中文标签
+        plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
         fig = plt.figure(figsize=(width,height))
         if isinstance(img, list):
             if row * col < len(img):
@@ -102,8 +104,11 @@ class ImageUtils():
                 ax = fig.add_subplot(row, col, i)
                 ax.set_yticks([])
                 ax.set_xticks([])
-                # ax.set_title("")
-                ax.imshow(self.CWH2WHC(img[idx]))
+                if isinstance(img[idx],tuple) or isinstance(img[idx],list):
+                    ax.set_title(img[idx][1])
+                    ax.imshow(self.CWH2WHC(img[idx][0]))
+                else:
+                    ax.imshow(self.CWH2WHC(img[idx]))
             plt.show()
         else:
             plt.imshow(self.CWH2WHC(img))

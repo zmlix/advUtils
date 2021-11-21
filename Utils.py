@@ -97,19 +97,22 @@ class Utils(ImageUtils, AlgorithmUtils, PlotUtils):
         return res[0] if len(res) == 1 else res
 
     def getImageNetImgRandom(self, num=1, label=False):
-        path = '/home/data/imagenetval/'
-        categories = os.listdir(path)
-        categoriesLen = len(categories)
+        import os
+        root_path = '/home/data/imagenetval/'
+        root_categories = os.listdir(root_path)
+        categoriesLen = len(root_categories)
 
-        randomIdx = np.random.randint(0, categoriesLen)
-        if label:
-            label_ = self.dataLabelOfImageNet2012()(categories[randomIdx])
-        path = path + categories[randomIdx] + '/'
-        categories = os.listdir(path)
-        categoriesLen = len(categories)
-        # category = categories[categories.index(name)]
         res = []
-        for _ in range(0, min(num, categoriesLen)):
+        for _ in range(num):
+            randomIdx = np.random.randint(0, categoriesLen)
+            if label:
+                label_ = self.dataLabelOfImageNet2012()(
+                    root_categories[randomIdx])
+            path = root_path + root_categories[randomIdx] + '/'
+
+            categories = os.listdir(path)
+            categoriesLen = len(categories)
+            # category = categories[categories.index(name)]
             if label:
                 res.append((Image.open(
                     path +
