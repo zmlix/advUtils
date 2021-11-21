@@ -84,8 +84,8 @@ class ImageUtils():
             img = img * 255.0
             return np.clip(img, 0, 255).astype(np.uint8)
 
-    def draw(self, img, row=1, col=1):
-        fig = plt.figure()
+    def draw(self, img, row=1, col=1,width = 15,height = 4):
+        fig = plt.figure(figsize=(width,height))
         if isinstance(img, list):
             if row * col < len(img):
                 if len(img) <= 5:

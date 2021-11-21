@@ -87,7 +87,7 @@ class Utils(ImageUtils, AlgorithmUtils, PlotUtils):
                         Image.open(path + categories[np.random.randint(
                             0, categoriesLen)]).resize((224, 224)))
             else:
-                if label_:
+                if label:
                     res.append((Image.open(path + categories[idx]).resize(
                         (224, 224)), label_))
                 else:
