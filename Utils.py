@@ -10,16 +10,14 @@ class Utils(ImageUtils, AlgorithmUtils, PlotUtils):
     def __init__(self) -> None:
         super().__init__()
 
-    ''' 前向传播 '''
-
     def frontward(self, model, img):
+        ''' 前向传播 '''
         prediction = model(img)
         label = np.argmax(prediction.cpu().detach().numpy())
         return (label, prediction)
 
-    ''' 获取预测标签 '''
-
     def argmax(self, p, axis=1):
+        ''' 获取预测标签 '''
         return np.argmax(p.cpu().detach().numpy(), axis)
 
     def topN(self, x, n=0):
@@ -32,9 +30,8 @@ class Utils(ImageUtils, AlgorithmUtils, PlotUtils):
     def confidence(self, x):
         return x.softmax(1).max().item()
 
-    ''' 比较两张图片的差异 '''
-
     def diff_image(self, imgA, imgB):
+        ''' 比较两张图片的差异 '''
         # if self.isNotNormalize(imgA):
         #     imgA = self.Normalize(imgA)
         # if self.isNotNormalize(imgB):
@@ -46,9 +43,8 @@ class Utils(ImageUtils, AlgorithmUtils, PlotUtils):
 
         return diff
 
-    ''' 获取ImageNet2012数据集的标签数据 '''
-
     def dataLabelOfImageNet2012(self, url=None):
+        ''' 获取ImageNet2012数据集的标签数据 '''
         url = './ImageNet2012.txt' if url == None else url
         data = open(url, mode='r', encoding='utf-8')
 
@@ -125,3 +121,21 @@ class Utils(ImageUtils, AlgorithmUtils, PlotUtils):
                                ).resize((224, 224)))
 
         return res[0] if len(res) == 1 else res
+
+    def PredictImage(self, model, img, print_=False):
+        labelInfo = self.dataLabelOfImageNet2012()
+        label, confidence = self.frontward(model, img)
+        if print_:
+            print(f'{labelInfo(label)} {self.confidence(confidence)}')
+        return labelInfo(label), self.confidence(confidence)
+
+    def sequential(self, sq):
+        def s(x):
+            for func in sq:
+                if isinstance(func, tuple) or isinstance(func, list):
+                    x = func[0](x, **func[1])
+                else:
+                    x = func(x)
+            return x
+
+        return s
