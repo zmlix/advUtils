@@ -1,9 +1,9 @@
-import os, torch
+import os, torch, sys
 import numpy as np
 from PIL import Image
-from Utils.ImageUtils import ImageUtils
-from Utils.AlgorithmUtils import AlgorithmUtils
-from Utils.PlotUtils import PlotUtils
+from ImageUtils import ImageUtils
+from AlgorithmUtils import AlgorithmUtils
+from PlotUtils import PlotUtils
 
 
 class Utils(ImageUtils, AlgorithmUtils, PlotUtils):
@@ -45,7 +45,8 @@ class Utils(ImageUtils, AlgorithmUtils, PlotUtils):
 
     def dataLabelOfImageNet2012(self, url=None):
         ''' 获取ImageNet2012数据集的标签数据 '''
-        url = './ImageNet2012.txt' if url == None else url
+        dirname, _ = os.path.split(os.path.abspath(__file__))
+        url = dirname + '/ImageNet2012.txt' if url == None else url
         data = open(url, mode='r', encoding='utf-8')
 
         labels = list()
