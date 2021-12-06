@@ -77,7 +77,7 @@ class AlgorithmUtils():
             label = np.argmax(prediction.cpu().detach().numpy())
             if info:
                 print(f'epoch {epoch} loss {loss} label {label}')
-            if label == target:
+            if label == target and info:
                 print(f"{epoch} | success to attack -> {target}")
                 break
             optimizer.zero_grad()

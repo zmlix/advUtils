@@ -1,4 +1,6 @@
-import os, torch, sys
+from collections import Iterable
+import os
+import torch
 import numpy as np
 from PIL import Image
 from ImageUtils import ImageUtils
@@ -10,11 +12,12 @@ class Utils(ImageUtils, AlgorithmUtils, PlotUtils):
     def __init__(self) -> None:
         super().__init__()
 
-    def frontward(self, model, img):
+    def frontward(self, model, imgs):
         ''' 前向传播 '''
-        prediction = model(img)
-        label = np.argmax(prediction.cpu().detach().numpy())
-        return (label, prediction)
+        predictions = model(imgs)
+        labels = predictions.softmax(1).max(1).indices.cpu().detach()
+        labels = labels[0].item() if len(labels) == 1 else labels
+        return (labels, predictions)
 
     def argmax(self, p, axis=1):
         ''' 获取预测标签 '''
@@ -28,7 +31,9 @@ class Utils(ImageUtils, AlgorithmUtils, PlotUtils):
         return softmax
 
     def confidence(self, x):
-        return x.softmax(1).max().item()
+        c = x.softmax(1).max(1).values.cpu().detach()
+        c = c[0].item() if len(c) == 1 else c
+        return c
 
     def diff_image(self, imgA, imgB):
         ''' 比较两张图片的差异 '''
@@ -56,8 +61,19 @@ class Utils(ImageUtils, AlgorithmUtils, PlotUtils):
             name = ''.join(tmp[2:])
             labels.append([int(tmp[0]), tmp[1], name.split(',')[0], name])
 
-        def run(idx):
-            idx = str(idx)
+        def run(idxs):
+            if isinstance(idxs, Iterable) and isinstance(idxs, torch.Tensor):
+                res = list()
+                for idx_ in idxs:
+                    idx = str(idx_.item())
+                    if idx.isdigit():
+                        res.append(labels[int(idx)])
+                    if idx[0] == 'n':
+                        res.append(
+                            list(filter(lambda item: item[1] == idx,
+                                        labels))[0])
+                return res
+            idx = str(idxs)
             if idx.isdigit():
                 # print(labels)
                 return labels[int(idx)]
@@ -66,7 +82,7 @@ class Utils(ImageUtils, AlgorithmUtils, PlotUtils):
 
         return run
 
-    def getImageNetImg(self, name, idx=-1, num=1, label=False):
+    def getImageNetImg(self, name, idx=-1, num=1, w=224, h=224, label=False):
         if label:
             label_ = self.dataLabelOfImageNet2012()(name)
         path = '/home/data/imagenetval/' + name + '/'
@@ -74,33 +90,55 @@ class Utils(ImageUtils, AlgorithmUtils, PlotUtils):
         categoriesLen = len(categories)
         # category = categories[categories.index(name)]
         res = []
-        for _ in range(0, min(num, categoriesLen)):
+        img = None
+
+        if num < 0:
+            for file_name in categories:
+                img = Image.open(path + file_name).resize((w, h))
+                if img.mode != 'RGB':
+                    continue
+                if label:
+                    res.append((img, label_))
+                else:
+                    res.append(img)
+            return res
+
+        cnt = 0
+        while cnt < min(num, categoriesLen):
             if idx == -1:
+                img = Image.open(
+                    path +
+                    categories[np.random.randint(0, categoriesLen)]).resize(
+                        (w, h))
+                if img.mode != 'RGB':
+                    continue
                 if label:
-                    res.append((Image.open(path + categories[np.random.randint(
-                        0, categoriesLen)]).resize((224, 224)), label_))
+                    res.append((img, label_))
                 else:
-                    res.append(
-                        Image.open(path + categories[np.random.randint(
-                            0, categoriesLen)]).resize((224, 224)))
+                    res.append(img)
             else:
+                img = Image.open(path + categories[idx]).resize((w, h))
+                if img.mode != 'RGB':
+                    print("image is not RGB")
+                    return []
                 if label:
-                    res.append((Image.open(path + categories[idx]).resize(
-                        (224, 224)), label_))
+                    res.append((img, label_))
                 else:
-                    res.append(
-                        Image.open(path + categories[idx]).resize((224, 224)))
+                    res.append(img)
+            cnt += 1
 
         return res[0] if len(res) == 1 else res
 
-    def getImageNetImgRandom(self, num=1, label=False):
+    def getImageNetImgRandom(self, num=1, w=224, h=224, label=False):
         import os
         root_path = '/home/data/imagenetval/'
         root_categories = os.listdir(root_path)
         categoriesLen = len(root_categories)
 
         res = []
-        for _ in range(num):
+        img = None
+        cnt = 0
+        while cnt < num:
             randomIdx = np.random.randint(0, categoriesLen)
             if label:
                 label_ = self.dataLabelOfImageNet2012()(
@@ -110,25 +148,25 @@ class Utils(ImageUtils, AlgorithmUtils, PlotUtils):
             categories = os.listdir(path)
             categoriesLen = len(categories)
             # category = categories[categories.index(name)]
+            img = Image.open(
+                path + categories[np.random.randint(0, categoriesLen)]).resize(
+                    (w, h))
+            if img.mode != 'RGB':
+                continue
             if label:
-                res.append((Image.open(
-                    path +
-                    categories[np.random.randint(0, categoriesLen)]).resize(
-                        (224, 224)), label_))
+                res.append((img, label_))
             else:
-                res.append(
-                    Image.open(path +
-                               categories[np.random.randint(0, categoriesLen)]
-                               ).resize((224, 224)))
+                res.append(Image.open(img))
+            cnt += 1
 
         return res[0] if len(res) == 1 else res
 
-    def PredictImage(self, model, img, print_=False):
+    def PredictImage(self, model, imgs, print_=False):
         labelInfo = self.dataLabelOfImageNet2012()
-        label, confidence = self.frontward(model, img)
+        labels, predictions = self.frontward(model, imgs)
         if print_:
-            print(f'{labelInfo(label)} {self.confidence(confidence)}')
-        return labelInfo(label), self.confidence(confidence)
+            print(f'{labelInfo(labels)} {self.confidence(predictions)}')
+        return labelInfo(labels), self.confidence(predictions)
 
     def sequential(self, sq):
         def s(x):
@@ -140,3 +178,11 @@ class Utils(ImageUtils, AlgorithmUtils, PlotUtils):
             return x
 
         return s
+
+    def labelsError(self, a, b, error=True):
+        a = list(zip(*a))[0]
+        b = list(zip(*b))[0]
+        if error:
+            return len(a) - (np.array(a) == np.array(b)).sum()
+        else:
+            return (np.array(a) == np.array(b)).sum()

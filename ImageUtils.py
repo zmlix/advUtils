@@ -1,3 +1,4 @@
+from collections import Iterable
 import torch
 import torchvision
 import numpy as np
@@ -19,33 +20,58 @@ class ImageUtils():
         if self.isNdarray(data):
             return data
         else:
+            if isinstance(data, Iterable):
+                datas = []
+                for d in data:
+                    datas.append(np.array(d))
+                return np.array(datas)
             return np.array(data)
 
     def channelTypeOfImage(self, img):
         try:
             shape = img.shape
-            if shape[0] == 3:
-                return (0, 'CWH')
-            if shape[2] == 3:
-                return (1, 'WHC')
-            return (2, 'Other')
+            dim = len(shape)
+            if dim == 3:
+                if shape[0] == 3:
+                    return (0, 'CWH')
+                if shape[2] == 3:
+                    return (1, 'WHC')
+            elif dim == 4:
+                if shape[1] == 3:
+                    return (2, 'NCWH')
+                if shape[3] == 3:
+                    return (3, 'NWHC')
+            else:
+                return (-1, 'Other')
         except:
             pass
             # print('not image data')
 
     def CWH2WHC(self, img):
-        if self.channelTypeOfImage(img)[1] == 'WHC':
+        ctype = self.channelTypeOfImage(img)
+        if ctype[1] in ['WHC', 'NWHC']:
             return img
         if not self.isNdarray(img):
             img = self.toNumpy(img)
-        return img.transpose(1, 2, 0)
+        if ctype[1] == 'CWH':
+            return img.transpose(1, 2, 0)
+        elif ctype[1] == 'NCWH':
+            return img.transpose(0, 2, 3, 1)
+        else:
+            print("can't CWH2WHC")
 
     def WHC2CWH(self, img):
-        if self.channelTypeOfImage(img)[1] == 'CWH':
+        ctype = self.channelTypeOfImage(img)
+        if ctype[1] in ['CWH', 'NCWH']:
             return img
         if not self.isNdarray(img):
             img = self.toNumpy(img)
-        return img.transpose(2, 0, 1)
+        if ctype[1] == 'WHC':
+            return img.transpose(2, 0, 1)
+        elif ctype[1] == 'NWHC':
+            return img.transpose(0, 3, 1, 2)
+        else:
+            print("can't WHC2CWH")
 
     def isNotNormalize(self, img):
         if (img > 1.0).any() or (img < 0).any():
@@ -70,7 +96,8 @@ class ImageUtils():
         else:
             img = img / 255.0
         img = self.WHC2CWH(img)
-        img = np.expand_dims(img, 0)
+        if img.ndim == 3:
+            img = np.expand_dims(img, 0)
         return img
 
     def restoreImage(self, img, normal=False):
@@ -84,10 +111,10 @@ class ImageUtils():
             img = img * 255.0
             return np.clip(img, 0, 255).astype(np.uint8)
 
-    def draw(self, img, row=1, col=1,width = 15,height = 4):
+    def draw(self, img, row=1, col=1, width=15, height=4):
         plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']  # 用来正常显示中文标签
         plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
-        fig = plt.figure(figsize=(width,height))
+        fig = plt.figure(figsize=(width, height))
         if isinstance(img, list):
             if row * col < len(img):
                 if len(img) <= 5:
@@ -104,7 +131,7 @@ class ImageUtils():
                 ax = fig.add_subplot(row, col, i)
                 ax.set_yticks([])
                 ax.set_xticks([])
-                if isinstance(img[idx],tuple) or isinstance(img[idx],list):
+                if isinstance(img[idx], tuple) or isinstance(img[idx], list):
                     ax.set_title(img[idx][1])
                     ax.imshow(self.CWH2WHC(img[idx][0]))
                 else:
