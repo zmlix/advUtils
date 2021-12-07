@@ -1,4 +1,5 @@
 from collections import Iterable
+from numpy.core.fromnumeric import clip
 import torch
 import torchvision
 import numpy as np
@@ -8,7 +9,8 @@ import matplotlib.pyplot as plt
 
 class ImageUtils():
     def __init__(self) -> None:
-        pass
+        self.device = torch.device(
+            'cuda' if torch.cuda.is_available() else 'cpu')
 
     def type(self, data):
         return type(data)
@@ -21,6 +23,8 @@ class ImageUtils():
             return data
         else:
             if isinstance(data, Iterable):
+                if isinstance(data, torch.Tensor):
+                    data = data.cpu().detach()
                 datas = []
                 for d in data:
                     datas.append(np.array(d))
@@ -100,16 +104,35 @@ class ImageUtils():
             img = np.expand_dims(img, 0)
         return img
 
-    def restoreImage(self, img, normal=False):
+    def restoreImage(self, img, normal=True):
+        isTensor = isinstance(img, torch.Tensor)
         img = self.CWH2WHC(img)
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
+        # mean = [0.485, 0.456, 0.406]
+        # std = [0.229, 0.224, 0.225]
+        # img = (img * std) + mean
+        # if normal:
+        #     return np.clip(img, 0, 1)
+        # else:
+        #     img = img * 255.0
+        #     return np.clip(img, 0, 255).astype(np.uint8)
+        mean = torch.tensor([0.485, 0.456, 0.406]).reshape(1, 1,
+                                                           3).to(self.device)
+        std = torch.tensor([0.229, 0.224, 0.225]).reshape(1, 1,
+                                                          3).to(self.device)
+        img = torch.tensor(img).to(self.device)
+        # print(img.shape)
         img = (img * std) + mean
+        res = None
         if normal:
-            return np.clip(img, 0, 1)
+            res = img.clip(0, 1).cpu().clone().detach()
         else:
             img = img * 255.0
-            return np.clip(img, 0, 255).astype(np.uint8)
+            res = img.clip(0, 255).type(torch.uint8).cpu().clone().detach()
+
+        if isTensor:
+            return res
+        else:
+            return res.numpy()
 
     def draw(self, img, row=1, col=1, width=15, height=4):
         plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']  # 用来正常显示中文标签
@@ -189,6 +212,32 @@ class ImageUtils():
                         relative), self.L1(img, img_adv, relative),
                 self.L2(img, img_adv,
                         relative), self.L_inf(img, img_adv, relative))
+
+    def norm(self, img, adv_img, L=2, dim=(1, 2, 3), mean=False):
+        if mean:
+            return torch.norm(img - adv_img, L, dim=dim).mean()
+        else:
+            return torch.norm(img - adv_img, L, dim=dim)
+
+    def advAccuracy(self,
+                    true_labels,
+                    classifier_labels,
+                    adv_labels,
+                    detail=False):
+        # true labels
+        a = true_labels
+        # classifier labels
+        b = classifier_labels
+        # adv labels
+        c = adv_labels
+        # print(a == b)
+        # print(b == c)
+        # print((a == b) & (b != c))
+        # print((a == b).sum(), ((a == b) & (b != c)).sum())
+        if detail:
+            return (a == b).sum(), (b != c).sum(), ((a == b) & (b != c)).sum()
+        else:
+            return ((a == b) & (b != c)).sum() / (a == b).sum()
 
 
 def main():
