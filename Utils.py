@@ -1163,7 +1163,7 @@ class Utils(ImageUtils.ImageUtils, AlgorithmUtils.AlgorithmUtils, PlotUtils.Plot
             if label:
                 res.append((img, label_))
             else:
-                res.append(Image.open(img))
+                res.append(img)
             cnt += 1
 
         return res[0] if len(res) == 1 else res

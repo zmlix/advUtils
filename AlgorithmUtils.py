@@ -28,10 +28,10 @@ class AlgorithmUtils():
 
         grads = 0
 
-        target, prediction = self.frontward(model, img)
-        target = torch.tensor([target], device=device).long()
+        prediction = model(img)
+        target = prediction.softmax(1).max(1).indices.cpu().detach().to(
+            device=device)
         loss = loss_func(prediction, target)
-        label = np.argmax(prediction.cpu().detach().numpy())
         optimizer.zero_grad()
         loss.backward()
         img.data = img.data + eps * torch.sign(img.grad.data)
@@ -66,7 +66,7 @@ class AlgorithmUtils():
         ) if loss_func_ == None else loss_func_
         # print(img.requires_grad)
         # img.retain_grad()
-        target = torch.tensor([target], device=device).long()
+        target = torch.full((img.shape[0], ), target).to(device=device).long()
 
         grads = 0
 
@@ -74,17 +74,22 @@ class AlgorithmUtils():
             prediction = model(img)
             # print(prediction.requires_grad)
             loss = loss_func(prediction, target)
-            label = np.argmax(prediction.cpu().detach().numpy())
+            label = prediction.softmax(1).max(1).indices.cpu().detach().to(
+                device=device)
             if info:
-                print(f'epoch {epoch} loss {loss} label {label}')
-            if label == target and info:
+                print(
+                    f'epoch {epoch} loss {loss} label {label} score={prediction.softmax(1)[range(img.shape[0]),label]}'
+                )
+            if (label == target).all() and info:
                 print(f"{epoch} | success to attack -> {target}")
                 break
             optimizer.zero_grad()
             loss.backward()
             # print(img.grad.data)
-            img.data = img.data - eps * torch.sign(img.grad.data)
-            grads += eps * torch.sign(img.grad.data)
+            rr = eps * torch.sign(img.grad.data)
+            rr[label == target] = 0
+            img.data = img.data - rr
+            grads += rr
             # optimizer.step()
             # img.data = (img.data - img.data.min()) / (img.data.max() - img.data.min())
         if grad_:
@@ -104,7 +109,10 @@ class AlgorithmUtils():
         overshoot = 0.02
         num_classes = 1000
 
-        orig_label, output = self.frontward(model, img)
+        output = model(img)
+        orig_label = output.softmax(1).max(1).indices.cpu().detach().to(
+            device=device)
+
         input_shape = self.toNumpy(img.shape)
         w = np.zeros(input_shape)
         r_tot = np.zeros(input_shape)
@@ -112,37 +120,58 @@ class AlgorithmUtils():
         grads = 0
 
         for epoch in range(epochs):
-            label, scores = self.frontward(model, img)
+            scores = model(img)
+            label = scores.softmax(1).max(1).indices.cpu().detach().to(
+                device=device)
             if info:
-                print(f'epoch={epoch} label={label} score={scores[0][label]}')
-            if label != orig_label:
+                print(
+                    f'epoch={epoch} label={label} score={scores.softmax(1)[range(orig_label.shape[0]),label]}'
+                )
+            if (label != orig_label).all():
                 break
-            pert = np.inf
-            output[0, orig_label].backward(retain_graph=True)
+            pert = np.array([np.inf for _ in range(orig_label.shape[0])])
+            output[range(orig_label.shape[0]),
+                   orig_label.long()].backward(
+                       output[range(orig_label.shape[0]),
+                              orig_label.long()].clone().detach(),
+                       retain_graph=True)
             grad_orig = img.grad.data.cpu().numpy().copy()
 
             for k in range(num_classes):
-                if k == orig_label:
-                    continue
+                k_ = torch.full_like(orig_label, k)
+                select_k = (k_ != orig_label) & (label == orig_label)
+                select_index = torch.tensor(range(
+                    orig_label.shape[0]))[select_k].long()
                 img.grad.data.zero_()
-                output[0, k].backward(retain_graph=True)
+                output[select_index, k].backward(output[select_index,
+                                                        k].clone().detach(),
+                                                 retain_graph=True)
                 cur_grad = img.grad.data.cpu().numpy().copy()
 
                 w_k = cur_grad - grad_orig
-                f_k = (output[0, k] - output[0, orig_label]).data.cpu().numpy()
-                pert_k = abs(f_k) / np.linalg.norm(w_k.flatten())
+                f_k = (output[range(orig_label.shape[0]), k] -
+                       output[range(orig_label.shape[0]),
+                              orig_label]).data.cpu().numpy()
+                pert_k = abs(f_k) / torch.norm(
+                    torch.tensor(w_k), p=2,
+                    dim=(1, 2, 3)).cpu().clone().detach().numpy()
 
-                if pert_k < pert:
-                    pert = pert_k
-                    w = w_k
+                select_pert = (pert_k < pert)
+                select_pert[np.arange(
+                    orig_label.shape[0])[pert_k == 0]] = False
+                pert[select_pert] = pert_k[select_pert]
+                w[select_pert] = w_k[select_pert]
 
-            # print(pert,w)
-
-            r_i = (pert + 1e-8) * w / np.linalg.norm(w)
+            r_i = (pert.reshape(orig_label.shape[0], 1, 1, 1) +
+                   1e-8) * w / torch.norm(torch.tensor(w), 2, dim=(
+                       1, 2, 3)).cpu().clone().detach().numpy().reshape(
+                           orig_label.shape[0], 1, 1, 1)
+            r_i = r_i.astype(np.float32)
             r_tot = np.float32(r_tot + r_i)
-            img.data = img.data + (1 + overshoot) * torch.from_numpy(r_i).to(
-                device=device)
-            grads += (1 + overshoot) * torch.from_numpy(r_i).to(device=device)
+            rr = (1 + overshoot) * torch.from_numpy(r_tot).to(device=device)
+            rr[label != orig_label] = 0
+            img.data = img.data + rr
+            grads += rr
 
         if grad_:
             return (img, grads)
