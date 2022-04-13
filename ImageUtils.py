@@ -1,5 +1,4 @@
 from collections import Iterable
-from numpy.core.fromnumeric import clip
 import torch
 import torchvision
 import cv2
@@ -105,7 +104,7 @@ class ImageUtils():
             img = np.expand_dims(img, 0)
         return img
 
-    def restoreImage(self, img, normal=True):
+    def restoreImage(self, img, normal=True,clip=True):
         isTensor = isinstance(img, torch.Tensor)
         img = self.CWH2WHC(img)
         # mean = [0.485, 0.456, 0.406]
@@ -125,10 +124,16 @@ class ImageUtils():
         img = (img * std) + mean
         res = None
         if normal:
-            res = img.clip(0, 1).cpu().clone().detach()
+            if clip:
+                res = img.clip(0, 1).cpu().clone().detach()
+            else:
+                res = img.cpu().clone().detach()
         else:
             img = img * 255.0
-            res = img.clip(0, 255).type(torch.uint8).cpu().clone().detach()
+            if clip:
+                res = img.clip(0, 255).type(torch.uint8).cpu().clone().detach()
+            else:
+                res = img.cpu().clone().detach()
 
         if isTensor:
             return res

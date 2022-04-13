@@ -57,7 +57,7 @@ class Utils(ImageUtils.ImageUtils, AlgorithmUtils.AlgorithmUtils, PlotUtils.Plot
         labels = list()
         for label in data.readlines():
             label = label.strip('\n')
-            tmp = label.split(' ')
+            tmp = label.split(' ',maxsplit=2)
             name = ''.join(tmp[2:])
             labels.append([int(tmp[0]), tmp[1], name.split(',')[0], name])
 
@@ -1087,7 +1087,7 @@ class Utils(ImageUtils.ImageUtils, AlgorithmUtils.AlgorithmUtils, PlotUtils.Plot
         ]
         return className[idx]
 
-    def getImageNetImg(self, name, idx=-1, num=1, w=224, h=224, label=False):
+    def getImageNetImg(self, name, idx=-1, num=1, w=224, h=224, label=False,fname=False):
         if isinstance(name, int):
             name = self.idx2class(name)
         if label:
@@ -1097,6 +1097,7 @@ class Utils(ImageUtils.ImageUtils, AlgorithmUtils.AlgorithmUtils, PlotUtils.Plot
         categoriesLen = len(categories)
         # category = categories[categories.index(name)]
         res = []
+        fnameList = []
         img = None
 
         if num < 0:
@@ -1108,6 +1109,10 @@ class Utils(ImageUtils.ImageUtils, AlgorithmUtils.AlgorithmUtils, PlotUtils.Plot
                     res.append((img, label_))
                 else:
                     res.append(img)
+                if fname:
+                    fnameList.append(file_name)
+            if fname:
+                return res, fnameList
             return res
 
         cnt = 0
