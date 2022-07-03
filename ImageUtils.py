@@ -304,6 +304,21 @@ class ImageUtils():
         else:
             return ((a == b) & (b != c)).sum() / (a == b).sum()
 
+    def get_eps(self,img_, diff, norm = 10/255,l = 0,r = 10000):
+        eps_l = l
+        eps_r = r
+        eps = (eps_l + eps_r) / 2
+        while abs(
+                torch.norm((img_ + eps * diff).clip(0, 1) - img_, p=float('inf')) -
+                norm) > 1e-5:
+            if torch.norm(
+                (img_ + eps * diff).clip(0, 1) - img_, p=float('inf')) > norm:
+                eps_r = eps
+            else:
+                eps_l = eps
+            eps = (eps_l + eps_r) / 2
+
+        return eps
 
 def main():
     pass
